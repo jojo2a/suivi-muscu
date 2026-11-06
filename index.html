@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muscu — suivi</title>
+<style>
+  :root{--bg:#0d1014;--card:#161a21;--line:#252b35;--txt:#e9ecf2;--dim:#93a0b3;--acc:#22c55e;--acc2:#3b82f6;--warn:#f59e0b}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);padding:14px 14px 90px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
+  .tabs{display:flex;gap:6px;position:fixed;bottom:0;left:0;right:0;background:#11151b;padding:8px 10px;border-top:1px solid var(--line);z-index:9}
+  .tabs button{flex:1;border:0;background:#1d232c;color:var(--dim);padding:11px 4px;border-radius:10px;font:inherit;font-size:12px}
+  .tabs button.on{background:var(--acc);color:#08110a;font-weight:700}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px;border:1px solid var(--line)}
+  label{display:block;font-size:11px;color:var(--dim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+  input,select,textarea{width:100%;background:#0f1319;border:1px solid var(--line);color:var(--txt);padding:11px;border-radius:9px;font:inherit;font-size:15px}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  .btn{background:var(--acc);color:#08110a;border:0;border-radius:10px;padding:13px;font:inherit;font-weight:700;width:100%;margin-top:12px}
+  .btn.sec{background:#1d232c;color:var(--txt);font-weight:500}
+  .big{font-size:30px;font-weight:800;letter-spacing:-.02em}
+  .kpi{display:flex;gap:8px;margin-bottom:6px}
+  .kpi div{flex:1;background:#12161d;border:1px solid var(--line);border-radius:11px;padding:10px}
+  .kpi b{display:block;font-size:18px}
+  .kpi span{font-size:10px;color:var(--dim);text-transform:uppercase}
+  .item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .item:last-child{border:0}
+  .item small{color:var(--dim);font-size:11px;display:block}
+  .del{background:none;border:0;color:#ef4444;font-size:16px;padding:4px 8px}
+  canvas{width:100%;height:150px;display:block;margin-top:8px}
+  .gauge{height:10px;background:#1d232c;border-radius:5px;overflow:hidden;margin-top:6px}
+  .gauge div{height:100%;background:var(--acc);width:0}
+  .gauge.p div{background:var(--acc2)}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .presets button{background:#1d232c;border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:8px 12px;font:inherit;font-size:12px}
+  .hint{font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5}
+</style>
+</head>
+<body>
+<h1>Suivi muscu</h1>
+<div class="sub">Prise lente : 200 kcal de plus, 150 g de protéines. Le test, c'est le tour de taille.</div>
+<div id="app"></div>
+<div class="tabs">
+  <button id="t1" onclick="go('poids')">Poids</button>
+  <button id="t2" onclick="go('seances')">Séances</button>
+  <button id="t3" onclick="go('bouffe')">Bouffe</button>
+  <button id="t4" onclick="go('liens')">Liens</button>
+</div>
+<script>
+const K='muscu_v1';
+const db = JSON.parse(localStorage.getItem(K) || '{"poids":[],"seances":[],"bouffe":[]}');
+const save = () => localStorage.setItem(K, JSON.stringify(db));
+const app = document.getElementById('app');
+const today = () => new Date().toISOString().slice(0,10);
+let tab='poids';
+
+const PRESETS = [
+  ["3 œufs",210,19],["Yaourt grec",120,10],["80 g avoine",300,11],
+  ["150 g poulet",240,34],["150 g saumon",310,30],["100 g riz cru",350,7],
+  ["Sardines boîte",220,25],["Banane",100,1],["40 g amandes",240,8],
+  ["Tacos",900,35],["Pain 2 tranches",160,6],["Lentilles 150 g cuit",170,12]
+];
+
+function go(t){ tab=t; render(); }
+
+function render(){
+  ['t1','t2','t3','t4'].forEach((id,i)=>document.getElementById(id).classList.toggle('on', ['poids','seances','bouffe','liens'][i]===tab));
+  if(tab==='poids') poids();
+  if(tab==='seances') seances();
+  if(tab==='bouffe') bouffe();
+  if(tab==='liens') liens();
+}
+
+/* ---------- POIDS ---------- */
+function poids(){
+  const p = [...db.poids].sort((a,b)=>a.d.localeCompare(b.d));
+  const first = p[0], last = p[p.length-1];
+  const delta = first && last ? (last.p - first.p) : 0;
+  const taille = last && last.t ? last.t : null;
+  const fat = db.poids.filter(x=>x.t).slice(-1)[0];
+  app.innerHTML = `
+    <div class="kpi">
+      <div><span>Poids</span><b>${last?last.p+' kg':'—'}</b></div>
+      <div><span>Depuis le début</span><b style="color:${delta>=0?'var(--acc)':'#ef4444'}">${delta>0?'+':''}${delta.toFixed(1)} kg</b></div>
+      <div><span>Taille</span><b>${fat?fat.t+' cm':'—'}</b></div>
+    </div>
+    <div class="card">
+      <canvas id="c"></canvas>
+      <div class="hint">Tu te pèses le matin à jeun, après les toilettes. Ce qui compte c'est la moyenne de la semaine, pas le chiffre du jour.</div>
+    </div>
+    <div class="card">
+      <label>Date</label><input type="date" id="dp" value="${today()}">
+      <div class="row">
+        <div><label>Poids (kg)</label><input type="number" id="pp" step="0.1" placeholder="73.5"></div>
+        <div><label>Tour de taille (cm)</label><input type="number" id="tp" step="0.5" placeholder="78"></div>
+      </div>
+      <button class="btn" onclick="addP()">Enregistrer</button>
+    </div>
+    <div class="card">
+      ${p.slice().reverse().slice(0,12).map((x,i)=>`<div class="item"><div><b>${x.p} kg</b><small>${x.d} · taille ${x.t||'—'} cm</small></div><button class="del" onclick="delP(${db.poids.indexOf(x)})">×</button></div>`).join('')||'<div class="hint">Aucune mesure.</div>'}
+    </div>`;
+  chart(p);
+}
+function addP(){
+  const d=document.getElementById('dp').value, p=parseFloat(document.getElementById('pp').value), t=parseFloat(document.getElementById('tp').value)||null;
+  if(!d||!p) return;
+  db.poids.push({d,p,t}); save(); render();
+}
+function delP(i){ db.poids.splice(i,1); save(); render(); }
+function chart(p){
+  const c=document.getElementById('c'); if(!c||p.length<2) return;
+  const r=window.devicePixelRatio||1; c.width=c.clientWidth*r; c.height=150*r;
+  const x=c.getContext('2d'); x.scale(r,r);
+  const W=c.clientWidth,H=150,pad=18;
+  const min=Math.min(...p.map(v=>v.p))-.5, max=Math.max(...p.map(v=>v.p))+.5;
+  const px=i=>pad+i*(W-2*pad)/(p.length-1), py=v=>H-pad-(v-min)*(H-2*pad)/(max-min);
+  x.strokeStyle='#22c55e'; x.lineWidth=2.5; x.beginPath();
+  p.forEach((v,i)=> i?x.lineTo(px(i),py(v.p)):x.moveTo(px(i),py(v.p))); x.stroke();
+  x.fillStyle='#22c55e';
+  p.forEach((v,i)=>{x.beginPath();x.arc(px(i),py(v.p),3,0,7);x.fill();});
+  x.fillStyle='#93a0b3'; x.font='10px sans-serif';
+  x.fillText(min.toFixed(1)+' kg',2,H-4); x.fillText(max.toFixed(1)+' kg',2,12);
+}
+
+/* ---------- SEANCES ---------- */
+function seances(){
+  const s=[...db.seances].sort((a,b)=>b.d.localeCompare(a.d));
+  const week = s.filter(x=> (Date.now()-new Date(x.d).getTime()) < 7*864e5 ).length;
+  app.innerHTML = `
+    <div class="kpi">
+      <div><span>Cette semaine</span><b>${week}</b></div>
+      <div><span>Total</span><b>${s.length}</b></div>
+    </div>
+    <div class="card">
+      <label>Date</label><input type="date" id="ds" value="${today()}">
+      <div class="row">
+        <div><label>Type</label>
+          <select id="ts">
+            <option>Muscu haut</option><option>Muscu jambes</option><option>Course facile</option>
+            <option>Fractionné</option><option>Boxe</option><option>Chasse</option><option>Mobilité</option>
+          </select>
+        </div>
+        <div><label>Durée (min)</label><input type="number" id="dus" placeholder="60"></div>
+      </div>
+      <label>Détail</label><input id="ns" placeholder="Tractions 5x6, tirage 3x10...">
+      <button class="btn" onclick="addS()">Ajouter</button>
+    </div>
+    <div class="card">
+      ${s.slice(0,20).map((x)=>`<div class="item"><div><b>${x.t}</b><small>${x.d}${x.du?' · '+x.du+' min':''}${x.n?' · '+x.n:''}</small></div><button class="del" onclick="delS(${db.seances.indexOf(x)})">×</button></div>`).join('')||'<div class="hint">Aucune séance.</div>'}
+    </div>`;
+}
+function addS(){
+  const d=document.getElementById('ds').value,t=document.getElementById('ts').value,du=document.getElementById('dus').value,n=document.getElementById('ns').value;
+  if(!d) return; db.seances.push({d,t,du,n}); save(); render();
+}
+function delS(i){ db.seances.splice(i,1); save(); render(); }
+
+/* ---------- BOUFFE ---------- */
+const KC=2850, PR=150;
+function bouffe(){
+  const t=today();
+  const day = db.bouffe.filter(x=>x.d===t);
+  const k=day.reduce((a,b)=>a+b.k,0), p=day.reduce((a,b)=>a+b.p,0);
+  app.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="big">${k}</span><span style="color:var(--dim)">/ ${KC} kcal</span></div>
+      <div class="gauge"><div style="width:${Math.min(100,k/KC*100)}%"></div></div>
+      <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:baseline"><span class="big">${p} g</span><span style="color:var(--dim)">/ ${PR} g protéines</span></div>
+      <div class="gauge p"><div style="width:${Math.min(100,p/PR*100)}%"></div></div>
+      <div class="hint">Reste ${Math.max(0,KC-k)} kcal et ${Math.max(0,PR-p)} g de protéines.</div>
+    </div>
+    <div class="card">
+      <label>Ajouter un aliment</label>
+      <input id="fn" placeholder="Nom (ex: 150 g poulet)">
+      <div class="row"><div><label>Kcal</label><input type="number" id="fk" placeholder="0"></div><div><label>Protéines</label><input type="number" id="fp" placeholder="0"></div></div>
+      <button class="btn" onclick="addF()">Ajouter</button>
+      <div class="presets">${PRESETS.map((x,i)=>`<button onclick="quick(${i})">${x[0]} · ${x[1]} kcal</button>`).join('')}</div>
+    </div>
+    <div class="card">
+      <div class="item" style="border:0;padding-top:0"><b>Aujourd'hui</b></div>
+      ${day.map((x,i)=>`<div class="item"><div><b>${x.n}</b><small>${x.k} kcal · ${x.p} g</small></div><button class="del" onclick="delF(${db.bouffe.indexOf(x)})">×</button></div>`).join('')||'<div class="hint">Rien encore aujourd\'hui.</div>'}
+    </div>`;
+}
+function addF(){
+  const n=document.getElementById('fn').value||'Aliment',k=parseInt(document.getElementById('fk').value||0),p=parseInt(document.getElementById('fp').value||0);
+  db.bouffe.push({d:today(),n,k,p}); save(); render();
+}
+function quick(i){ const [n,k,p]=PRESETS[i]; db.bouffe.push({d:today(),n,k,p}); save(); render(); }
+function delF(i){ db.bouffe.splice(i,1); save(); render(); }
+
+/* ---------- LIENS ---------- */
+function liens(){
+  const L=[
+    ["Séances","Programme de la semaine (PDF)","/programme/"],
+    ["Séances","Appli code de la route","https://jojo2a.github.io/code-permis/"],
+    ["Séances","Musique rock et corse","https://jojo2a.github.io/musique/"],
+    ["Calcul","1 kg de gras = 7 700 kcal","https://www.google.com/search?q=1+kg+graisse+7700+kcal"],
+    ["Aliments","Table de composition des aliments","https://www.google.com/search?q=table+composition+aliments+calories+prot%C3%A9ines"],
+  ];
+  app.innerHTML = `<div class="card">${L.map(([c,t,u])=>`<div class="item"><div><small>${c}</small><a href="${u}" style="color:var(--txt);text-decoration:none"><b>${t}</b></a></div></div>`).join('')}</div>
+  <div class="card"><button class="btn sec" onclick="exporter()">Exporter mes données (JSON)</button>
+  <div class="hint">Tes données restent dans ton téléphone. Rien n'est envoyé nulle part.</div></div>`;
+}
+function exporter(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='suivi-muscu.json'; a.click();
+}
+render();
+</script>
+</body>
+</html>
